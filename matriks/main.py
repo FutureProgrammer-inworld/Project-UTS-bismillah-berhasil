@@ -7,53 +7,124 @@ from matriks.operations.inverse import inverse
 from matriks.statistic.regression import regresi_linier, prediksi, evaluasi
 from matriks.utilities import print_matrix
 from matriks.exporters.csv_exporter import export_to_csv
+from matriks.exporters.json_exporter import export_to_json
+from matriks.importers.csv_importer import import_from_csv
+from matriks.importers.json_importer import import_from_json
+from matriks.importers.input_importer import import_from_input
+
+def tampilkan_menu():
+    print("\n=== MENU OPERASI MATRIKS ===")
+    print("1. Penjumlahan matriks")
+    print("2. Perkalian matriks")
+    print("3. Transpose matriks")
+    print("4. Invers matriks")
+    print("5. Regresi Linier (OLS)")
+    print("6. Ekspor matriks ke CSV")
+    print("7. Ekspor matriks ke JSON")
+    print("0. Keluar")
+
+def pilih_matriks():
+    """Memilih sumber matriks (manual / CSV / JSON)"""
+    print("\nPilih sumber matriks:")
+    print("1. Input manual")
+    print("2. Impor dari CSV")
+    print("3. Impor dari JSON")
+    pilihan = input("Masukkan pilihan: ")
+
+    if pilihan == "1":
+        return import_from_input()
+    elif pilihan == "2":
+        path = input("Masukkan nama file CSV: ")
+        return import_from_csv(path)
+    elif pilihan == "3":
+        path = input("Masukkan nama file JSON: ")
+        return import_from_json(path)
+    else:
+        print("Pilihan tidak valid.")
+        return None
 
 if __name__ == "__main__":
-    matriks_a = Matrix([[1, 2], [3, 4]])
-    matriks_b = Matrix([[5, 6], [7, 8]])
+    matriks_aktif = None
 
-    print("Hasil Penjumlahan:")
-    hasil_penjumlahan = add_matrices(matriks_a, matriks_b)
-    print_matrix(hasil_penjumlahan)
+    while True:
+        tampilkan_menu()
+        pilihan = input("\nPilih menu (0-10): ")
 
-    print("\nHasil Perkalian:")
-    hasil_perkalian = multiply_matrices(matriks_a, matriks_b)
-    print_matrix(hasil_perkalian)
+        if pilihan == "0":
+            print("Terima kasih! Program selesai.")
+            break
 
-    print("\nHasil Transpose Matriks A:")
-    hasil_transpose = transpose(matriks_a)
-    print_matrix(hasil_transpose)
+        elif pilihan == "1":
+            print("\n=== Penjumlahan Matriks ===")
+            print("Masukkan matriks pertama:")
+            A = pilih_matriks()
+            print("Masukkan matriks kedua:")
+            B = pilih_matriks()
+            if A and B:
+                hasil = add_matrices(A, B)
+                print("Hasil penjumlahan:")
+                print_matrix(hasil)
 
-    print("\nHasil Transpose Matriks B:")
-    hasil_transpose = transpose(matriks_b)
-    print_matrix(hasil_transpose)
+        elif pilihan == "2":
+            print("\n=== Perkalian Matriks ===")
+            print("Masukkan matriks pertama:")
+            A = pilih_matriks()
+            print("Masukkan matriks kedua:")
+            B = pilih_matriks()
+            if A and B:
+                hasil = multiply_matrices(A, B)
+                print("Hasil perkalian:")
+                print_matrix(hasil)
 
-    print("\nHasil Invers Matriks A:")
-    hasil_invers = inverse(matriks_a)
-    print_matrix(hasil_invers)
+        elif pilihan == "3":
+            print("\n=== Transpose Matriks ===")
+            print("Masukkan matriks:")
+            matriks = pilih_matriks()
+            hasil = transpose(matriks)
+            print("Hasil transpose:")
+            print_matrix(hasil)
 
-    print("\nHasil Invers Matriks B:")
-    hasil_invers = inverse(matriks_b)
-    print_matrix(hasil_invers)
+        elif pilihan == "4":
+            print("\n=== Invers Matriks ===")
+            print("Masukkan matriks:")
+            matriks = pilih_matriks()
+            hasil = inverse(matriks)
+            print("Hasil invers:")
+            print_matrix(hasil)
 
-    matrix_c = Matrix([[10, 20], [30, 40]])
-    print("\nMenyimpan Matriks C ke file CSV:")
-    export_to_csv(matrix_c, "matriks_c.csv")
+        elif pilihan == "5":
+            print("\n=== Regresi Linier (OLS) ===")
+            print("Masukkan matriks X (termasuk kolom 1 untuk intercept):")
+            X = pilih_matriks()
+            if X:
+                y = input("Masukkan nilai y (pisahkan dengan spasi): ").split()
+                y = [float(val) for val in y]
+                beta = regresi_linier(X, y)
+                print("Koefisien β:")
+                print_matrix(beta)
+                y_pred = prediksi(X, beta)
+                print("Prediksi ŷ:")
+                print_matrix(y_pred)
+                hasil_eval = evaluasi([[val] for val in y], y_pred.data)
+                print("Evaluasi Model:")
+                print("  SSE =", hasil_eval["SSE"])
+                print("  MSE =", hasil_eval["MSE"])
+                print("  R²  =", hasil_eval["R2"])
 
-    print("\n=== Regresi Linier (OLS) ===")
+        elif pilihan == "6":
+            if matriks_aktif:
+                nama_file = input("Masukkan nama file CSV untuk ekspor: ")
+                export_to_csv(matriks_aktif, nama_file)
+            else:
+                print("Belum ada matriks aktif untuk diekspor!")
 
-    # Contoh data
-    X = Matrix([[1, 1], [1, 2], [1, 3], [1, 4]])  # 1 untuk intercept
-    y = [2, 3, 4, 5]
+        elif pilihan == "7":
+            if matriks_aktif:
+                nama_file = input("Masukkan nama file JSON untuk ekspor: ")
+                export_to_json(matriks_aktif, nama_file)
+            else:
+                print("Belum ada matriks aktif untuk diekspor!")
 
-    beta = regresi_linier(X, y)
-    print("Koefisien (β):", beta.data)
+        else:
+            print("Pilihan tidak dikenal, silakan coba lagi.")
 
-    y_pred = prediksi(X, beta)
-    print("Prediksi (ŷ):", y_pred.data)
-
-    hasil_eval = evaluasi([[val] for val in y], y_pred.data)
-    print("Evaluasi Model:")
-    print("  SSE =", hasil_eval["SSE"])
-    print("  MSE =", hasil_eval["MSE"])
-    print("  R²  =", hasil_eval["R2"])
