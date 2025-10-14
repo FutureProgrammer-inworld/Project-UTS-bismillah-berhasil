@@ -4,6 +4,7 @@ from matriks.operations.adder import add_matrices
 from matriks.operations.multiplier import multiply_matrices
 from matriks.operations.transpose import transpose
 from matriks.operations.inverse import inverse
+from matriks.statistic.correlation import mean, correlation, correlation_matrix
 from matriks.statistic.regression import regresi_linier, prediksi, evaluasi
 from matriks.utilities import print_matrix
 from matriks.exporters.csv_exporter import export_to_csv
@@ -18,9 +19,10 @@ def tampilkan_menu():
     print("2. Perkalian matriks")
     print("3. Transpose matriks")
     print("4. Invers matriks")
-    print("5. Regresi Linier (OLS)")
-    print("6. Ekspor matriks ke CSV")
-    print("7. Ekspor matriks ke JSON")
+    print("5. Korelasi")
+    print("6. Regresi Linier (OLS)")
+    print("7. Ekspor matriks ke CSV")
+    print("8. Ekspor matriks ke JSON")
     print("0. Keluar")
 
 def pilih_matriks():
@@ -92,33 +94,58 @@ if __name__ == "__main__":
             print("Hasil invers:")
             print_matrix(hasil)
 
+
         elif pilihan == "5":
+            print("\n=== Korelasi Antar Semua Kolom (Correlation Matrix) ===")
+            print("Pilih sumber data:")
+
+            sumber = input("1. Input manual\n2. Impor dari CSV\n3. Impor dari JSON\nMasukkan pilihan: ")
+
+            if sumber == "2":
+                from matriks.importers.csv_importer import import_from_csv
+                nama_file = input("Masukkan nama file CSV: ")
+                data = import_from_csv(nama_file)
+                print(f"Matriks berhasil diimpor dari {nama_file}")
+
+                from matriks.statistic.correlation import correlation_matrix
+                header, corr_mat = correlation_matrix(data.data)
+
+                print("\n=== Tabel Korelasi ===")
+                print("     " + "  ".join(f"{h[:6]:>8}" for h in header))
+                for i, row in enumerate(corr_mat.data):
+                    print(f"{header[i][:6]:>6} " + "  ".join(f"{val:8.3f}" for val in row))
+
+        elif pilihan == "6":
             print("\n=== Regresi Linier (OLS) ===")
-            print("Masukkan matriks X (termasuk kolom 1 untuk intercept):")
-            X = pilih_matriks()
-            if X:
-                y = input("Masukkan nilai y (pisahkan dengan spasi): ").split()
-                y = [float(val) for val in y]
+            print("Masukkan sumber data matriks (X dan Y akan dipilih dari sini):")
+            data_matriks = pilih_matriks()
+
+            if data_matriks:
+                from matriks.statistic.regression import pilih_variabel_xy
+                X, y = pilih_variabel_xy(data_matriks)
+
                 beta = regresi_linier(X, y)
-                print("Koefisien β:")
+                print("\nKoefisien β:")
                 print_matrix(beta)
+
                 y_pred = prediksi(X, beta)
-                print("Prediksi ŷ:")
+                print("\nPrediksi ŷ:")
                 print_matrix(y_pred)
-                hasil_eval = evaluasi([[val] for val in y], y_pred.data)
-                print("Evaluasi Model:")
+
+                hasil_eval = evaluasi(y.data, y_pred.data)
+                print("\nEvaluasi Model:")
                 print("  SSE =", hasil_eval["SSE"])
                 print("  MSE =", hasil_eval["MSE"])
                 print("  R²  =", hasil_eval["R2"])
 
-        elif pilihan == "6":
+        elif pilihan == "7":
             if matriks_aktif:
                 nama_file = input("Masukkan nama file CSV untuk ekspor: ")
                 export_to_csv(matriks_aktif, nama_file)
             else:
                 print("Belum ada matriks aktif untuk diekspor!")
 
-        elif pilihan == "7":
+        elif pilihan == "8":
             if matriks_aktif:
                 nama_file = input("Masukkan nama file JSON untuk ekspor: ")
                 export_to_json(matriks_aktif, nama_file)
