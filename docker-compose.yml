@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  web:
+    # Menggunakan Dockerfile di direktori saat ini (.) untuk membangun image
+    build: .
+    # Mapping port: port lokal (host) 8040 ke port container 5000
+    # Ini membuat aplikasi dapat diakses di http://localhost:8040
+    ports:
+      - "8040:5000"
+    # Restart container jika terjadi kegagalan (kecuali dihentikan manual)
+    restart: always
+    # Menentukan nama container agar mudah diidentifikasi
+    container_name: matrix_stats_app
