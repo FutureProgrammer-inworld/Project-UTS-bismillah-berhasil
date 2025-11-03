@@ -90,10 +90,6 @@
                     </select>
                     <textarea id="stats_content" rows="6" class="w-full p-3 border rounded-md text-sm" placeholder="Data JSON..."></textarea>
                     <input type="file" id="stats_file" accept=".csv" class="hidden w-full p-2 border rounded-md bg-white text-sm" onchange="readStatsCSV(event)">
-                    
-                    <h4 class="text-lg font-bold mt-6 mb-2 text-gray-700 border-t pt-4">Parameter Regresi Linier</h4>
-                    <textarea id="col_y_index" rows="1" class="w-full p-2 border rounded-md mb-2 text-sm" placeholder="Kolom Y (misal: 0)"></textarea>
-                    <textarea id="col_x_indices" rows="2" class="w-full p-2 border rounded-md mb-4 text-sm" placeholder="Kolom X (misal: 1,2,3)"></textarea>
 
                     <button onclick="runRegression()" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Hitung Regresi</button>
                 </div>
@@ -194,15 +190,21 @@
             document.getElementById('result-data').innerHTML=result.success?result.result.html:`<p>${result.error}</p>`;
         }
 
+
         async function runRegression() {
             showLoading('Regresi');
-            const data = {
-                source: document.getElementById('stats_source').value,
-                content: document.getElementById('stats_content').value,
-                col_y_index: document.getElementById('col_y_index').value,
-                col_x_indices: document.getElementById('col_x_indices').value
-            };
-            const result = await postData('/regression', data);
+
+            const fileInput = document.getElementById('stats_file');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            if (file) formData.append('file', file);
+
+            const res = await fetch(`${API_BASE}/regression`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await res.json();
             hideLoading();
 
             if (result.success) {
@@ -222,6 +224,7 @@
                 document.getElementById('stats_results').innerHTML = `<p>${result.error}</p>`;
             }
         }
+
 
         // Tabs
         document.querySelectorAll('.tab-button').forEach(btn=>btn.addEventListener('click',e=>{

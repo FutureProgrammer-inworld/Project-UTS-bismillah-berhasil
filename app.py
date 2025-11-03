@@ -4,7 +4,7 @@ import csv
 import io
 import numpy as np
 import base64
-
+import pandas as pd
 # Matplotlib non-interactive backend
 import matplotlib
 matplotlib.use('Agg')
@@ -17,9 +17,8 @@ from matriks.operations.multiplier import multiply_matrices
 from matriks.operations.transpose import transpose
 from matriks.operations.inverse import inverse
 from matriks.statistic.regression import (
-    regresi_linier, prediksi, evaluasi, pilih_variabel_xy
+    regresi_linier, prediksi, evaluasi
 )
-from matriks.statistic.regression_visualization import plot_regresi
 from matriks.utilities.formatter import format_matrix_for_html
 
 app = Flask(__name__)
@@ -184,64 +183,60 @@ def api_inverse():
 
 
 # --- REGRESI LINIER ---
+
 @app.route('/api/regression', methods=['POST'])
-def api_regression():
+def regression_auto():
     try:
-        # Jika file diupload dari form
-        if 'file' in request.files:
-            file = request.files['file']
-            content = file.read().decode('utf-8')
-            # tambahkan matrix_a_content agar bisa diproses
-            data = {
-                "matrix_a_source": "csv",
-                "matrix_a_content": content,  # <-- penting!
-                "col_y_index": request.form.get("col_y_index"),
-                "col_x_indices": request.form.get("col_x_indices")
-            }
-        else:
-            data = request.json
+        # --- Baca CSV dan ambil kolom numerik
+        df = pd.read_csv(request.files['file']).select_dtypes(include='number')
+        X_data = df.iloc[:, :-1].values.tolist()  # semua kolom kecuali terakhir
+        y_data = df.iloc[:, -1].values.reshape(-1, 1).tolist()  # kolom terakhir = Y
 
-        # ✅ pastikan ada konten
-        if not data.get("matrix_a_content"):
-            raise ValueError("File CSV tidak terbaca atau kosong.")
+        # --- Konversi ke Matrix
+        X = Matrix(X_data)
+        y = Matrix(y_data)
 
-        # --- proses regresi
-        A = get_matrix_from_request(data, key="matrix_a")
-        col_y_index = int(data.get('col_y_index'))
-        col_x_indices = [
-            int(i.strip())
-            for i in data.get('col_x_indices', '').split(',')
-            if i.strip() != ''
-        ]
-
-        X, y, X_names, y_name = pilih_variabel_xy(A, col_y_index, col_x_indices)
+        # --- Jalankan regresi linier
         beta = regresi_linier(X, y)
-        y_pred = prediksi(X, y.data)
+        y_pred = prediksi(X, beta)
         hasil_eval = evaluasi(y.data, y_pred.data)
-        plot_base64 = plot_regresi(X.data, y.data, y_pred.data, beta.data)
 
-        # --- tampilkan hasil
-        beta_html = '<h4 class="text-lg font-semibold mb-2">Koefisien Regresi (β)</h4>'
-        beta_html += '<ul class="list-disc ml-5 space-y-1">'
-        beta_html += f'<li><b>Intercept</b>: {beta.data[0][0]:.4f}</li>'
-        for i, name in enumerate(X_names):
-            beta_html += f'<li><b>{name}</b>: {beta.data[i+1][0]:.4f}</li>'
-        beta_html += '</ul>'
+        # --- Plot scatter + garis regresi
+        import io, base64, matplotlib.pyplot as plt
+        plt.figure(figsize=(6,4))
+        y_actual = [row[0] for row in y.data]
+        y_predict = [row[0] for row in y_pred.data]
+
+        # Scatter plot Y aktual vs Y prediksi
+        plt.scatter(y_actual, y_predict, color='blue', label='Prediksi')
+
+        # Garis regresi (Y_actual vs Y_actual=Y_pred)
+        min_y, max_y = min(y_actual), max(y_actual)
+        plt.plot([min_y, max_y], [min_y, max_y], color='red', linestyle='--', label='Garis Ideal')
+        
+        plt.xlabel("Y Aktual")
+        plt.ylabel("Y Prediksi")
+        plt.title("Plot Regresi Linier")
+        plt.legend()
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        plt.close()
+        buf.seek(0)
+        plot_base64 = base64.b64encode(buf.read()).decode('utf-8')
+
+        # --- Hasil
+        beta_html = "<pre>" + "\n".join([f"β{i} = {val[0]:.4f}" for i, val in enumerate(beta.data)]) + "</pre>"
 
         return jsonify({
             "success": True,
             "beta_html": beta_html,
-            "evaluation": {
-                "R2": f"{hasil_eval['R2']:.4f}",
-                "MSE": f"{hasil_eval['MSE']:.4f}",
-                "SSE": f"{hasil_eval['SSE']:.4f}"
-            },
+            "evaluation": hasil_eval,
             "plot_base64": plot_base64
         })
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
-
 
 
 # ================================
