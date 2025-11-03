@@ -63,40 +63,56 @@ def evaluasi(y_asli, y_pred):
         "R2": R2,
         "residuals": residuals
     }
+def pilih_variabel_xy(matrix_data, col_y_index=None, col_x_indices=None):
+    """
+    Fungsi fleksibel untuk memilih variabel X dan Y.
+    - Jika col_y_index dan col_x_indices dikirim (mode web/backend), langsung pakai itu.
+    - Jika tidak dikirim (mode CLI), maka minta input manual dari pengguna.
+    """
 
-def pilih_variabel_xy(matrix_data):
-    header = matrix_data.data[0]
-    rows = matrix_data.data[1:]  # data tanpa header
+    header = getattr(matrix_data, 'header', [f"X{i+1}" for i in range(matrix_data.cols)])
 
-    print("=== Pilih Variabel X dan Y ===")
-    print("Struktur Matriks:")
-    for i, row in enumerate(matrix_data.data[:10]):  # tampilkan sebagian
-        print(f"{i+1}: {row}")
-    print(f"\nTerdapat {len(header)} kolom (indeks 0–{len(header)-1})")
+    # ---------------------------
+    # Mode CLI (interaktif)
+    # ---------------------------
+    if col_y_index is None or col_x_indices is None:
+        print("=== Pilih Variabel X dan Y ===")
+        print(f"Terdapat {len(header)} kolom (indeks 0–{len(header)-1})")
+        print("Header:", header)
+        print("\nContoh 5 baris pertama:")
+        for i, row in enumerate(matrix_data.data[:5]):
+            print(f"{i+1}: {row}")
 
-    # input bisa berupa indeks atau nama kolom
-    kol_y = input("Pilih kolom untuk variabel Y (indeks atau nama): ")
-    if not kol_y.isdigit():
-        if kol_y not in header:
-            raise ValueError(f"Kolom '{kol_y}' tidak ditemukan dalam header.")
-        kol_y = header.index(kol_y)
-    else:
-        kol_y = int(kol_y)
-
-    kol_x = input("Pilih kolom untuk variabel X (indeks atau nama, pisahkan dengan koma): ").split(",")
-    kol_x_final = []
-    for x in kol_x:
-        x = x.strip()
-        if not x.isdigit():
-            if x not in header:
-                raise ValueError(f"Kolom '{x}' tidak ditemukan dalam header.")
-            kol_x_final.append(header.index(x))
+        kol_y = input("Pilih kolom untuk variabel Y (indeks atau nama): ")
+        if not kol_y.isdigit():
+            if kol_y not in header:
+                raise ValueError(f"Kolom '{kol_y}' tidak ditemukan dalam header.")
+            col_y_index = header.index(kol_y)
         else:
-            kol_x_final.append(int(x))
+            col_y_index = int(kol_y)
 
-    # buat matriks X dan vektor y
-    X_data = [[row[i] for i in kol_x_final] for row in rows]
-    y_data = [[row[kol_y]] for row in rows]
+        kol_x = input("Pilih kolom untuk variabel X (indeks atau nama, pisahkan dengan koma): ").split(",")
+        col_x_indices = []
+        for x in kol_x:
+            x = x.strip()
+            if not x.isdigit():
+                if x not in header:
+                    raise ValueError(f"Kolom '{x}' tidak ditemukan dalam header.")
+                col_x_indices.append(header.index(x))
+            else:
+                col_x_indices.append(int(x))
 
-    return Matrix(X_data), Matrix(y_data)
+    # ---------------------------
+    # Ambil kolom sesuai indeks
+    # ---------------------------
+    y_data = [[row[col_y_index]] for row in matrix_data.data]
+    y = Matrix(y_data)
+    y_name = header[col_y_index] if col_y_index < len(header) else f"Kolom {col_y_index}"
+
+    X_data = [[row[i] for i in col_x_indices] for row in matrix_data.data]
+    X = Matrix(X_data)
+    X_names = [header[i] if i < len(header) else f"Kolom {i}" for i in col_x_indices]
+
+    return X, y, X_names, y_name
+
 

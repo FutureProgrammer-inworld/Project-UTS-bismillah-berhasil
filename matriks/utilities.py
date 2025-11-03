@@ -6,7 +6,7 @@ def print_matrix(matrix):
     """
     for row in matrix.data:
         print(row)
-
+        
 def find_determinant(matrix):
     """
     Menghitung determinan dari sebuah matriks.

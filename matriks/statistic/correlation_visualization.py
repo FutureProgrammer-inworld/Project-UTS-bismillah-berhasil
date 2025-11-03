@@ -13,7 +13,7 @@ def plot_correlation_matrix(matrix, labels):
 
     data = np.array(data, dtype=float)
 
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(16, 12))
     plt.imshow(data, cmap="coolwarm", interpolation="nearest")
     plt.colorbar(label="Korelasi")
     plt.xticks(range(len(labels)), labels, rotation=45, ha="right")
@@ -27,3 +27,4 @@ def plot_correlation_matrix(matrix, labels):
 
     plt.tight_layout()
     plt.show()
+    

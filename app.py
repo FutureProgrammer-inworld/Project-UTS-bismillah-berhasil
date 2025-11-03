@@ -1,55 +1,124 @@
-# app.py
-from flask import Flask, render_template, request, jsonify, make_response
+from flask import Flask, render_template, request, jsonify
 import json
-import numpy as np
+import csv
 import io
+import numpy as np
 import base64
 
-# Menggunakan backend Matplotlib Agg (non-interaktif)
+# Matplotlib non-interactive backend
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-# Impor semua modul Matriks
+# Import modul matriks
 from matriks.matrix import Matrix
 from matriks.operations.adder import add_matrices
 from matriks.operations.multiplier import multiply_matrices
 from matriks.operations.transpose import transpose
 from matriks.operations.inverse import inverse
-from matriks.statistic.correlation import correlation_matrix, visualize_correlation_matrix
 from matriks.statistic.regression import (
-    regresi_linier, prediksi, evaluasi, visualize_regression, pilih_variabel_xy_web
+    regresi_linier, prediksi, evaluasi, pilih_variabel_xy
 )
-from matriks.importers.csv_importer import import_from_csv
-from matriks.importers.json_importer import import_from_json
-from matriks.importers.input_importer import import_from_input
-from matriks.exporters.csv_exporter import export_to_csv
-from matriks.exporters.json_exporter import export_to_json
-from matriks.utilities import format_matrix_for_html, format_table_for_html
+from matriks.statistic.regression_visualization import plot_regresi
+from matriks.utilities.formatter import format_matrix_for_html
 
 app = Flask(__name__)
 
-# --- Fungsi Pembantu Matriks Global ---
-
+# ================================
+# Helper: membaca konten CSV/Manual/JSON dari request
+# ================================
 def get_matrix_from_request(req_data, key="matrix_a"):
-    """Membantu mendapatkan objek Matrix dari input user di web."""
-    source = req_data.get(f'{key}_source')
-    content = req_data.get(f'{key}_content')
-    
+    source = (req_data.get(f'{key}_source') or '').lower()
+    content = req_data.get(f'{key}_content', '')
+
+    # Jika file upload (HTML form multipart)
+    if 'file' in request.files:
+        file = request.files['file']
+        if file and file.filename:
+            content = file.read().decode('utf-8')
+            source = 'csv'
+
+    content = content.strip()
     if not content:
         raise ValueError(f"Konten Matriks ({key}) tidak boleh kosong.")
 
+    # MANUAL
     if source == 'manual':
-        return import_from_input(content)
-    elif source == 'csv':
-        return import_from_csv(content)
-    elif source == 'json':
-        return import_from_json(content)
-    else:
-        raise ValueError("Sumber matriks tidak valid.")
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        data = []
+        for line in lines:
+            line = line.replace(',', ' ')
+            parts = [p for p in line.split() if p]
+            try:
+                data.append([float(p) for p in parts])
+            except ValueError:
+                raise ValueError(f"Format angka salah di baris: '{line}'")
+        if len({len(r) for r in data}) != 1:
+            raise ValueError("Semua baris harus memiliki jumlah kolom sama.")
+        return Matrix(data)
 
+    # CSV
+    elif source == 'csv':
+        f = io.StringIO(content)
+        reader = csv.reader(f)
+        rows = [row for row in reader if any(cell.strip() for cell in row)]
+        if not rows:
+            raise ValueError("CSV kosong atau tidak valid.")
+
+        first = rows[0]
+        header = None
+        numeric_first_row = True
+        try:
+            [float(x) for x in first]
+        except Exception:
+            numeric_first_row = False
+
+        if numeric_first_row:
+            numeric_rows = rows
+        else:
+            header = [h.strip() for h in first]
+            numeric_rows = rows[1:]
+
+        data = []
+        for r in numeric_rows:
+            try:
+                row = [float(x) for x in r if x.strip() != ""]
+                data.append(row)
+            except ValueError:
+                raise ValueError("CSV berisi nilai non-numerik pada baris data.")
+
+        if len({len(r) for r in data}) != 1:
+            raise ValueError("Semua baris CSV harus punya jumlah kolom sama.")
+
+        m = Matrix(data)
+        if header:
+            setattr(m, 'header', header)
+        return m
+
+    # JSON
+    elif source == 'json':
+        try:
+            parsed = json.loads(content)
+        except Exception:
+            raise ValueError("JSON tidak valid.")
+        if isinstance(parsed, dict) and 'data' in parsed:
+            data = parsed['data']
+            m = Matrix([[float(x) for x in row] for row in data])
+            if 'header' in parsed:
+                setattr(m, 'header', parsed['header'])
+            return m
+        elif isinstance(parsed, list):
+            return Matrix([[float(x) for x in row] for row in parsed])
+        else:
+            raise ValueError("Format JSON tidak dikenali.")
+    else:
+        raise ValueError("Sumber matriks tidak valid (manual/csv/json).")
+
+
+# ================================
+# Convert Matrix ke JSON
+# ================================
 def matrix_to_json_response(matrix):
-    """Mengkonversi objek Matrix ke format JSON yang dapat dikirim ke frontend."""
     return {
         "header": getattr(matrix, 'header', [f"X{i+1}" for i in range(matrix.cols)]),
         "data": matrix.data,
@@ -58,125 +127,105 @@ def matrix_to_json_response(matrix):
         "html": format_matrix_for_html(matrix.data)
     }
 
-# --- Routing Utama ---
 
+# ================================
+# ROUTES
+# ================================
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# --- API Endpoints Operasi Matriks ---
 
+# --- OPERASI MATRIKS ---
 @app.route('/api/add', methods=['POST'])
 def api_add():
     try:
-        data = request.json
+        data = request.form.to_dict() if request.form else request.json
         A = get_matrix_from_request(data, key="matrix_a")
         B = get_matrix_from_request(data, key="matrix_b")
-        
         result = add_matrices(A, B)
-        return jsonify({
-            "success": True,
-            "result": matrix_to_json_response(result)
-        })
+        return jsonify({"success": True, "result": matrix_to_json_response(result)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
 
 @app.route('/api/multiply', methods=['POST'])
 def api_multiply():
     try:
-        data = request.json
+        data = request.form.to_dict() if request.form else request.json
         A = get_matrix_from_request(data, key="matrix_a")
         B = get_matrix_from_request(data, key="matrix_b")
-        
         result = multiply_matrices(A, B)
-        return jsonify({
-            "success": True,
-            "result": matrix_to_json_response(result)
-        })
+        return jsonify({"success": True, "result": matrix_to_json_response(result)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
 
 @app.route('/api/transpose', methods=['POST'])
 def api_transpose():
     try:
-        data = request.json
+        data = request.form.to_dict() if request.form else request.json
         A = get_matrix_from_request(data, key="matrix_a")
-        
         result = transpose(A)
-        return jsonify({
-            "success": True,
-            "result": matrix_to_json_response(result)
-        })
+        return jsonify({"success": True, "result": matrix_to_json_response(result)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
 
 @app.route('/api/inverse', methods=['POST'])
 def api_inverse():
     try:
-        data = request.json
+        data = request.form.to_dict() if request.form else request.json
         A = get_matrix_from_request(data, key="matrix_a")
-        
         result = inverse(A)
-        return jsonify({
-            "success": True,
-            "result": matrix_to_json_response(result)
-        })
+        return jsonify({"success": True, "result": matrix_to_json_response(result)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
-# --- API Endpoint Analisis Statistik ---
 
-@app.route('/api/correlation', methods=['POST'])
-def api_correlation():
-    try:
-        data = request.json
-        A = get_matrix_from_request(data, key="matrix_a")
-        
-        names, corr_mat = correlation_matrix(A)
-        
-        # Hitung Visualisasi
-        plot_base64 = visualize_correlation_matrix(corr_mat.data, names)
-
-        # Format tabel untuk HTML
-        table_html = format_table_for_html(names, corr_mat.data)
-
-        return jsonify({
-            "success": True,
-            "names": names,
-            "matrix_html": table_html,
-            "plot_base64": plot_base64
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 400
-
+# --- REGRESI LINIER ---
 @app.route('/api/regression', methods=['POST'])
 def api_regression():
     try:
-        data = request.json
+        # Jika file diupload dari form
+        if 'file' in request.files:
+            file = request.files['file']
+            content = file.read().decode('utf-8')
+            # tambahkan matrix_a_content agar bisa diproses
+            data = {
+                "matrix_a_source": "csv",
+                "matrix_a_content": content,  # <-- penting!
+                "col_y_index": request.form.get("col_y_index"),
+                "col_x_indices": request.form.get("col_x_indices")
+            }
+        else:
+            data = request.json
+
+        # ✅ pastikan ada konten
+        if not data.get("matrix_a_content"):
+            raise ValueError("File CSV tidak terbaca atau kosong.")
+
+        # --- proses regresi
         A = get_matrix_from_request(data, key="matrix_a")
-        
-        # Mendapatkan indeks kolom dari form web
         col_y_index = int(data.get('col_y_index'))
-        # col_x_indices adalah string dipisahkan koma, konversi ke list of int
-        col_x_indices = [int(i.strip()) for i in data.get('col_x_indices').split(',')]
+        col_x_indices = [
+            int(i.strip())
+            for i in data.get('col_x_indices', '').split(',')
+            if i.strip() != ''
+        ]
 
-        X, y, X_names, y_name = pilih_variabel_xy_web(A, col_y_index, col_x_indices)
-
+        X, y, X_names, y_name = pilih_variabel_xy(A, col_y_index, col_x_indices)
         beta = regresi_linier(X, y)
         y_pred = prediksi(X, y.data)
         hasil_eval = evaluasi(y.data, y_pred.data)
+        plot_base64 = plot_regresi(X.data, y.data, y_pred.data, beta.data)
 
-        # Hitung Visualisasi
-        plot_base64 = visualize_regression(X.data, y.data, y_pred.data, beta.data)
-
-        # Format koefisien Beta untuk tampilan
-        beta_names = ["Intercept"] + X_names 
+        # --- tampilkan hasil
         beta_html = '<h4 class="text-lg font-semibold mb-2">Koefisien Regresi (β)</h4>'
         beta_html += '<ul class="list-disc ml-5 space-y-1">'
-        
-        beta_html += f'<li><span class="font-bold">Intercept</span>: {beta.data[0][0]:.4f}</li>'
-        for i in range(len(X_names)):
-            beta_html += f'<li><span class="font-bold">{X_names[i]}</span>: {beta.data[i+1][0]:.4f}</li>'
+        beta_html += f'<li><b>Intercept</b>: {beta.data[0][0]:.4f}</li>'
+        for i, name in enumerate(X_names):
+            beta_html += f'<li><b>{name}</b>: {beta.data[i+1][0]:.4f}</li>'
         beta_html += '</ul>'
 
         return jsonify({
@@ -185,13 +234,18 @@ def api_regression():
             "evaluation": {
                 "R2": f"{hasil_eval['R2']:.4f}",
                 "MSE": f"{hasil_eval['MSE']:.4f}",
-                "SSE": f"{hasil_eval['SSE']:.4f}",
+                "SSE": f"{hasil_eval['SSE']:.4f}"
             },
             "plot_base64": plot_base64
         })
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
+
+
+# ================================
+# Jalankan server
+# ================================
 if __name__ == '__main__':
-    # Jalankan app di port 8040 jika dijalankan tanpa Docker (untuk testing)
     app.run(debug=True, port=8040)

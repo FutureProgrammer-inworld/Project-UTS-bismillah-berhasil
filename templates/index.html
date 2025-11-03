@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix & Statistik Interaktif</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .tab-button.active { background-color: #3b82f6; color: white; font-weight: 600; }
+        textarea { resize: vertical; min-height: 120px; }
+        .matrix-container table { width: 100%; border-collapse: collapse; }
+        .matrix-container th, .matrix-container td { padding: 8px 12px; border: 1px solid #e5e7eb; text-align: center; font-size: 0.9rem; }
+        .matrix-container th { background-color: #f3f4f6; font-weight: 600; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 border-b pb-4 text-blue-700">
+            Aplikasi Analisis Matriks & Regresi
+        </h1>
+        <p class="text-sm text-gray-500 mb-6">Integrasi Python/Flask (Backend) dan HTML/Tailwind (Frontend).</p>
+
+        <!-- TAB -->
+        <div class="flex space-x-2 mb-6 border-b border-gray-200 overflow-x-auto">
+            <button class="tab-button active px-4 py-2 rounded-t-lg" data-tab="matrix">Operasi Matriks</button>
+            <button class="tab-button px-4 py-2 rounded-t-lg" data-tab="stats">Regresi Linier</button>
+        </div>
+
+        <!-- ===================== -->
+        <!-- TAB MATRIX -->
+        <!-- ===================== -->
+        <div id="content-matrix" class="tab-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Input & Operasi Dasar (A <span id="operator-label" class="text-red-500 font-extrabold">+</span> B)</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- MATRIX A -->
+                <div class="p-4 border border-blue-200 rounded-xl bg-blue-50/50 shadow-md">
+                    <h3 class="text-xl font-semibold mb-3 text-blue-700">Matriks A</h3>
+                    <select id="matrix_a_source" class="w-full p-2 border rounded-md mb-3 bg-white text-sm" onchange="toggleMatrixInput('a')">
+                        <option value="manual">Input Manual (Koma/Spasi)</option>
+                        <option value="csv">Upload CSV</option>
+                    </select>
+                    <textarea id="matrix_a_content" class="w-full p-3 border rounded-md text-sm" placeholder="1,2,3&#10;4,5,6"></textarea>
+                    <input type="file" id="matrix_a_file" accept=".csv" class="hidden w-full p-2 border rounded-md bg-white text-sm" onchange="readCSVFile('a', event)">
+                </div>
+
+                <!-- MATRIX B -->
+                <div class="p-4 border border-blue-200 rounded-xl bg-blue-50/50 shadow-md">
+                    <h3 class="text-xl font-semibold mb-3 text-blue-700">Matriks B (Opsional)</h3>
+                    <select id="matrix_b_source" class="w-full p-2 border rounded-md mb-3 bg-white text-sm" onchange="toggleMatrixInput('b')">
+                        <option value="manual">Input Manual (Koma/Spasi)</option>
+                        <option value="csv">Upload CSV</option>
+                    </select>
+                    <textarea id="matrix_b_content" class="w-full p-3 border rounded-md text-sm" placeholder="7,8,9&#10;10,11,12"></textarea>
+                    <input type="file" id="matrix_b_file" accept=".csv" class="hidden w-full p-2 border rounded-md bg-white text-sm" onchange="readCSVFile('b', event)">
+                </div>
+
+                <!-- OPERASI -->
+                <div class="p-4 border border-gray-200 rounded-xl bg-gray-50 flex flex-col justify-between shadow-md">
+                    <div>
+                        <h3 class="text-xl font-semibold mb-3 text-gray-700">Pilih Operasi Matriks</h3>
+                        <div class="space-y-3">
+                            <button onclick="runOperation('add')" class="op-button w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg">A + B (Penjumlahan)</button>
+                            <button onclick="runOperation('multiply')" class="op-button w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg">A × B (Perkalian)</button>
+                            <button onclick="runOperation('transpose')" class="op-button w-full bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg">Aᵀ (Transpose)</button>
+                            <button onclick="runOperation('inverse')" class="op-button w-full bg-red-600 text-white font-bold py-2 px-4 rounded-lg">A⁻¹ (Invers)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== -->
+        <!-- TAB REGRESSION -->
+        <!-- ===================== -->
+        <div id="content-stats" class="tab-content hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Analisis Regresi Linier</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <!-- INPUT -->
+                <div class="p-4 border border-purple-200 rounded-xl bg-purple-50/50 shadow-md">
+                    <h3 class="text-xl font-semibold mb-3 text-purple-700">Data Regresi</h3>
+                    <select id="stats_source" class="w-full p-2 border rounded-md mb-3 bg-white text-sm" onchange="toggleStatsInput()">
+                        <option value="csv">Upload CSV</option>
+                        <option value="json">Input JSON</option>
+                    </select>
+                    <textarea id="stats_content" rows="6" class="w-full p-3 border rounded-md text-sm" placeholder="Data JSON..."></textarea>
+                    <input type="file" id="stats_file" accept=".csv" class="hidden w-full p-2 border rounded-md bg-white text-sm" onchange="readStatsCSV(event)">
+                    
+                    <h4 class="text-lg font-bold mt-6 mb-2 text-gray-700 border-t pt-4">Parameter Regresi Linier</h4>
+                    <textarea id="col_y_index" rows="1" class="w-full p-2 border rounded-md mb-2 text-sm" placeholder="Kolom Y (misal: 0)"></textarea>
+                    <textarea id="col_x_indices" rows="2" class="w-full p-2 border rounded-md mb-4 text-sm" placeholder="Kolom X (misal: 1,2,3)"></textarea>
+
+                    <button onclick="runRegression()" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Hitung Regresi</button>
+                </div>
+
+                <!-- OUTPUT -->
+                <div class="p-4 border rounded-xl bg-gray-50 shadow-md">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-700 border-b pb-2">Hasil Regresi</h3>
+                    <div id="stats_results" class="space-y-4 overflow-y-auto max-h-[500px] p-2 text-gray-600">
+                        <p>Hasil Regresi akan muncul di sini.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HASIL -->
+        <div class="mt-10 pt-6 border-t border-gray-300">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Hasil <span class="text-blue-500" id="result-title">Operasi Matriks</span></h2>
+            <div id="loading" class="hidden flex items-center justify-center space-x-3 p-8 bg-blue-50 rounded-lg">
+                <div class="spinner"></div><span>Memproses data...</span>
+            </div>
+            <div id="result-error" class="hidden p-4 bg-red-100 text-red-700 border border-red-300 rounded-lg font-semibold"></div>
+            <div id="result-data" class="matrix-container overflow-x-auto p-4 bg-white rounded-lg shadow-inner border">
+                <p>Hasil akan muncul di sini.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // === INPUT MODE HANDLERS ===
+        function toggleMatrixInput(type) {
+            const source = document.getElementById(`matrix_${type}_source`).value;
+            const textArea = document.getElementById(`matrix_${type}_content`);
+            const fileInput = document.getElementById(`matrix_${type}_file`);
+            if (source === 'csv') {
+                textArea.classList.add('hidden');
+                fileInput.classList.remove('hidden');
+            } else {
+                textArea.classList.remove('hidden');
+                fileInput.classList.add('hidden');
+            }
+        }
+
+        function readCSVFile(type, event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById(`matrix_${type}_content`).value = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        function toggleStatsInput() {
+            const source = document.getElementById('stats_source').value;
+            const textArea = document.getElementById('stats_content');
+            const fileInput = document.getElementById('stats_file');
+            if (source === 'csv') {
+                textArea.classList.add('hidden');
+                fileInput.classList.remove('hidden');
+            } else {
+                textArea.classList.remove('hidden');
+                fileInput.classList.add('hidden');
+            }
+        }
+
+        function readStatsCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById('stats_content').value = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        // === UTILITIES ===
+        function showLoading(op){ document.getElementById('loading').classList.remove('hidden'); document.getElementById('result-title').textContent=op; }
+        function hideLoading(){ document.getElementById('loading').classList.add('hidden'); }
+        function showError(msg){ hideLoading(); const err=document.getElementById('result-error'); err.textContent=msg; err.classList.remove('hidden'); }
+
+        async function postData(endpoint,data){
+            const res=await fetch(API_BASE+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+            return res.json();
+        }
+
+        async function runOperation(op){
+            showLoading(op);
+            const data={
+                matrix_a_source:document.getElementById('matrix_a_source').value,
+                matrix_a_content:document.getElementById('matrix_a_content').value,
+                matrix_b_source:document.getElementById('matrix_b_source').value,
+                matrix_b_content:document.getElementById('matrix_b_content').value
+            };
+            const result=await postData(`/${op}`,data);
+            hideLoading();
+            document.getElementById('result-data').innerHTML=result.success?result.result.html:`<p>${result.error}</p>`;
+        }
+
+        async function runRegression() {
+            showLoading('Regresi');
+            const data = {
+                source: document.getElementById('stats_source').value,
+                content: document.getElementById('stats_content').value,
+                col_y_index: document.getElementById('col_y_index').value,
+                col_x_indices: document.getElementById('col_x_indices').value
+            };
+            const result = await postData('/regression', data);
+            hideLoading();
+
+            if (result.success) {
+                document.getElementById('stats_results').innerHTML = `
+                    <h4 class="font-bold text-lg text-indigo-700 mb-2">Hasil Regresi Linier</h4>
+                    <div class="bg-white p-3 border rounded-lg shadow-inner mb-3">${result.beta_html}</div>
+
+                    <div class="grid grid-cols-3 gap-4 text-sm mb-4 text-gray-700">
+                        <div><b>R²:</b> ${result.evaluation.R2}</div>
+                        <div><b>MSE:</b> ${result.evaluation.MSE}</div>
+                        <div><b>SSE:</b> ${result.evaluation.SSE}</div>
+                    </div>
+
+                    <img src="data:image/png;base64,${result.plot_base64}" class="rounded-lg border mb-3" />
+                `;
+            } else {
+                document.getElementById('stats_results').innerHTML = `<p>${result.error}</p>`;
+            }
+        }
+
+        // Tabs
+        document.querySelectorAll('.tab-button').forEach(btn=>btn.addEventListener('click',e=>{
+            document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
+            e.target.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c=>c.classList.add('hidden'));
+            document.getElementById(`content-${e.target.dataset.tab}`).classList.remove('hidden');
+        }));
+    </script>
+</body>
+</html>

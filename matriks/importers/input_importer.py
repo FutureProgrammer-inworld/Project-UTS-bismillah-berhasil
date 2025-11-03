@@ -1,7 +1,30 @@
 # matriks/importers/input_importer.py
 from matriks.matrix import Matrix
 
-def import_from_input():
+def import_from_input(raw_input=None):
+    """
+    Mengimpor data matriks baik dari input web (string)
+    maupun input manual di terminal.
+    Format input:
+        - Setiap baris dipisahkan dengan newline (\n)
+        - Elemen tiap baris dipisahkan dengan spasi atau koma
+    """
+    # === MODE WEB ===
+    if raw_input is not None:
+        try:
+            # Pisahkan baris input berdasarkan newline
+            rows = raw_input.strip().split("\n")
+            data = []
+
+            for row in rows:
+                # Pisahkan elemen dengan koma atau spasi
+                elemen = [float(x) for x in row.replace(",", " ").split()]
+                data.append(elemen)
+
+            return Matrix(data)
+        except Exception as e:
+            raise ValueError(f"Input manual tidak valid: {e}")
+   # === MODE TERMINAL ===
     """Membuat matriks berdasarkan input pengguna."""
     try:
         baris = int(input("Masukkan jumlah baris: "))
